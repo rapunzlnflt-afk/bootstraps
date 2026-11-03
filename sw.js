@@ -1,5 +1,5 @@
 // Bootstraps service worker. Bump CACHE_VERSION with every release (matches version.json).
-const CACHE_VERSION = 'bootstraps-1.4.1';
+const CACHE_VERSION = 'bootstraps-1.4.2';
 const SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './logo-96.png'];
 
 self.addEventListener('install', (e) => {

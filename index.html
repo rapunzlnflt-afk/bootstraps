@@ -252,9 +252,20 @@ details.rewards .help{font-size:12.5px;color:var(--faint);margin:-4px 0 10px}
 .hist{margin-top:14px}
 .hist-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--border)}
 .hist-row:first-child{border-top:0}
+.hist-row .he{flex:1;min-width:0;display:flex;align-items:center;gap:12px;text-align:left;padding:4px 0;border-radius:10px}
+.hist-row .he .pen{color:var(--faint);flex-shrink:0}
+.hist-row .he:hover .pen{color:var(--sage)}
 .hist-row .d{font-size:13px;color:var(--muted);min-width:56px}
+.tagrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tag{border:1.5px solid var(--border);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--muted);background:var(--surface)}
+.tag[aria-pressed='true']{border-color:var(--sage);background:var(--sage-soft);color:var(--sage-ink)}
+.locked{font-size:13px;color:var(--muted);margin-top:6px}
 .hist-row .n{flex:1;min-width:0;font-size:14px;overflow-wrap:anywhere}
 .hist-row .a{font-weight:600}
+.hist-row .a.neg{color:var(--danger)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:14px;background:var(--surface-2);border:1px solid var(--border);margin-bottom:14px}
+.seg button{padding:9px 8px;border-radius:10px;font-size:14px;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed='true']{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
 .hist-row .x{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:var(--faint)}
 .hist-row .x:hover{background:var(--danger-soft);color:var(--danger)}
 
@@ -308,7 +319,11 @@ details.rewards .help{font-size:12.5px;color:var(--faint);margin:-4px 0 10px}
 .money .input{padding-left:28px}
 .money.bigm::before{font-size:22px}
 .money.bigm .input{padding-left:34px}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.row2>*{min-width:0}
+input[type='date'].input{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;height:48px;line-height:26px;text-align:left}
+input[type='date'].input::-webkit-date-and-time-value{text-align:left;min-height:26px}
+input[type='date'].input::-webkit-datetime-edit{padding:0}
 .choices{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .choice{border:1.5px solid var(--border);border-radius:14px;padding:10px 8px;text-align:center;background:var(--surface);font-size:13px;font-weight:600;color:var(--muted)}
 .choice small{display:block;font-weight:500;font-size:11.5px;color:var(--faint);margin-top:2px}
@@ -492,7 +507,7 @@ details.rewards .help{font-size:12.5px;color:var(--faint);margin:-4px 0 10px}
 <script>
 (function(){
 'use strict';
-var APP_VERSION='1.4.1';
+var APP_VERSION='1.4.2';
 var DEMO=!!window.GC_DEMO;
 var KEY='bootstraps_v1';
 var BACKUP_NAME='bootstraps-backup.json';
@@ -559,7 +574,13 @@ function rebalanceExtra(g){
   if(g.mode==='even')return;
   var keys=Object.keys(g.crushed).filter(function(k){return g.crushed[k].via==='extra'}).sort(function(a,b){return (g.crushed[b].at||0)-(g.crushed[a].at||0)});
   while(extraAvail(g)<0&&keys.length){delete g.crushed[keys.shift()]}
+  if(extraAvail(g)<0){var rest=Object.keys(g.crushed).sort(function(a,b){return (g.crushed[b].at||0)-(g.crushed[a].at||0)});while(extraAvail(g)<0&&rest.length){delete g.crushed[rest.shift()]}}
 }
+function refillExtra(g){var got=[];if(g.mode!=='even'&&autoFillOn()&&extraAvail(g)>0){var now=Date.now();pickBoxes(g,extraAvail(g)).forEach(function(i){g.crushed[i]={via:'extra',at:now};got.push(i)})}return got}
+var ADD_TAGS=['Paycheck','Birthday money','Work bonus','Tax refund','Gift','Side job','Sold something','Cash back'];
+var OUT_TAGS=['Emergency','Car repair','Medical','Bills','Home repair','Moved to another goal'];
+function tagRow(tags,cur){return '<div class="tagrow" role="group" aria-label="Quick labels">'+tags.map(function(t){return '<button type="button" class="tag" data-tag="'+esc(t)+'" aria-pressed="'+(t===cur)+'">'+esc(t)+'</button>'}).join('')+'</div>'}
+function wireTags(root,input){function sync(){$$('.tag',root).forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.tag===input.value.trim()))})}$$('.tag',root).forEach(function(b){b.addEventListener('click',function(){input.value=b.dataset.tag;sync()})});input.addEventListener('input',sync);return sync}
 /* choose open boxes that use as much of the available money as possible */
 function pickBoxes(g,avail){
   var idx=[];for(var i=0;i<g.boxes.length;i++)if(!g.crushed[i]&&g.boxes[i]<=avail)idx.push(i);
@@ -795,7 +816,7 @@ function planFor(g){
 /* weekly streak across all goals (Mon-start weeks) */
 function weekKey(d){var x=new Date(d.getFullYear(),d.getMonth(),d.getDate());var day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);return x.getTime()}
 function streak(){
-  var set={};state.goals.forEach(function(g){g.deposits.forEach(function(dp){set[weekKey(parseDay(dp.date))]=1})});
+  var set={};state.goals.forEach(function(g){g.deposits.forEach(function(dp){if(dp.amount>0)set[weekKey(parseDay(dp.date))]=1})});
   var wk=weekKey(new Date()),n=0,week=7*86400000;
   if(!set[wk]){wk-=week;if(!set[wk])return 0} // allow the current week to still be in progress
   while(set[wk]){n++;wk=weekKey(new Date(wk-week+3600000*12))}
@@ -926,7 +947,7 @@ function renderDetail(){
   var hint=g.mode==='even'?'Enter what you saved and the boxes fill in for you. You can also tap a box to stomp it.':(autoFillOn()?'Enter what you saved and Bootstraps picks the boxes. You can also tap any box to stomp it.':'Enter what you saved, then tap the boxes you want to stomp.');
   var quick=g.completedAt?'':'<form class="quick" id="quick-add" data-goal="'+g.id+'" novalidate><div class="money"><input class="input num" id="q-amt" inputmode="decimal" placeholder="Amount" aria-label="Amount saved"></div><button class="btn btn-primary" type="submit">Fill boxes</button></form><p class="quick-prev" id="q-prev" aria-live="polite">'+previewText(g,0)+'</p>';
   var deps=g.deposits.slice().sort(function(a,b){return a.date===b.date?(b.at||0)-(a.at||0):(a.date<b.date?1:-1)});
-  var hist=deps.length?deps.map(function(d){return '<div class="hist-row"><div class="d">'+niceDate(d.date)+'</div><div class="n">'+(d.note?esc(d.note):(d.box!=null?'Box '+(d.box+1):'Savings'))+'</div><div class="a num">'+money(d.amount)+'</div><button class="x" data-del-dep="'+d.id+'" aria-label="Delete '+money(d.amount)+' deposit from '+niceDate(d.date)+'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button></div>'}).join(''):'<p style="color:var(--muted);font-size:14px">No savings yet. Your first box is waiting.</p>';
+  var hist=deps.length?deps.map(function(d){return '<div class="hist-row"><button class="he" data-edit-dep="'+d.id+'" aria-label="Edit '+(d.amount<0?'withdrawal of '+money(-d.amount):money(d.amount)+' entry')+' from '+niceDate(d.date)+'"><span class="d">'+niceDate(d.date)+'</span><span class="n">'+(d.note?esc(d.note):(d.amount<0?'Taken out':(d.box!=null?'Box '+(d.box+1):'Savings')))+'</span><span class="a num'+(d.amount<0?' neg':'')+'">'+(d.amount<0?'−'+money(-d.amount):money(d.amount))+'</span><svg class="pen" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg></button><button class="x" data-del-dep="'+d.id+'" aria-label="Delete '+money(d.amount)+' deposit from '+niceDate(d.date)+'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button></div>'}).join(''):'<p style="color:var(--muted);font-size:14px">No savings yet. Your first box is waiting.</p>';
   $('#view-detail').innerHTML=
     '<button class="back" data-act="home"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg>All goals</button>'+
     '<div class="card">'+coverHtml(g)+
@@ -934,7 +955,7 @@ function renderDetail(){
       '<div><h2 class="htitle"><span class="hicon" aria-hidden="true">'+esc(g.icon)+'</span>'+esc(g.name)+'</h2><div class="amt num"><b>'+money(s)+'</b> of '+money(g.target)+'</div></div></div>'+
       '<div class="stats"><div class="stat"><div class="v num">'+money(pl.left)+'</div><div class="k">to go</div></div><div class="stat"><div class="v num">'+days+'</div><div class="k">until target</div></div><div class="stat"><div class="v num">'+est+'</div><div class="k">est. finish</div></div></div>'+
       planHtml+rewardPill(g)+
-      (g.completedAt?'':'<div class="actions one"><button class="btn btn-ghost" data-act="print" data-goal="'+g.id+'">Print grid</button></div>')+
+      (g.completedAt?'':'<div class="actions"><button class="btn btn-ghost" data-act="print" data-goal="'+g.id+'">Print grid</button><button class="btn btn-ghost" data-act="takeout" data-goal="'+g.id+'"'+(totalSaved(g)>0?'':' disabled')+'>Take money out</button></div>')+
     '</div>'+
     '<div class="card grid-card"><div class="grid-head"><h3>Your grid</h3><span class="eyebrow">'+(L?SHAPES[g.shape].name+' picture':g.countdown?'Countdown':({even:'Even boxes',mixed:'Mixed amounts',countup:'Count up'}[g.mode]))+'</span></div>'+
       (g.completedAt?'':'<p class="grid-hint">'+hint+'</p>')+quick+
@@ -1093,29 +1114,61 @@ function openGoalForm(preset,editing){
 }
 
 /* ---------- add savings ---------- */
-function openAdd(goalId){
+function openAdd(goalId,startMode){
   var act=activeGoals().filter(function(g){return !isTask(g)});
   if(!act.length){openNew();return}
   var cg=current.view==='detail'&&getGoal(current.goalId);
   var gid=goalId||(cg&&!cg.completedAt&&!isTask(cg)?current.goalId:act[0].id);
-  openSheet('<h2 id="sheet-title">Add savings</h2><p class="lede">Record money you set aside. Every dollar counts toward your goal.</p>'+
+  var mode=startMode==='out'?'out':'in';
+  openSheet('<h2 id="sheet-title">Add savings</h2><p class="lede" id="a-lede"></p>'+
+    '<div class="seg" role="group" aria-label="Add or take out"><button type="button" data-amode="in">Add money</button><button type="button" data-amode="out">Take money out</button></div>'+
     '<form id="add-form" novalidate>'+
     (act.length>1?'<div class="field"><label for="a-goal">Goal</label><select class="input" id="a-goal">'+act.map(function(g){return '<option value="'+g.id+'"'+(g.id===gid?' selected':'')+'>'+esc(g.icon+'  '+g.name)+'</option>'}).join('')+'</select></div>':'<input type="hidden" id="a-goal" value="'+gid+'">')+
-    '<div class="field"><label for="a-amt">Amount</label><div class="money bigm"><input class="input big num" id="a-amt" inputmode="decimal" placeholder="0" autofocus></div><p class="quick-prev" id="a-prev" aria-live="polite" style="margin:6px 0 0"></p></div>'+
+    '<div class="field"><label for="a-amt" id="a-amt-l">Amount</label><div class="money bigm"><input class="input big num" id="a-amt" inputmode="decimal" placeholder="0" autofocus></div><p class="quick-prev" id="a-prev" aria-live="polite" style="margin:6px 0 0"></p></div>'+
     '<label class="chk" id="a-auto-wrap"><input type="checkbox" id="a-auto"'+(autoFillOn()?' checked':'')+'> Fill boxes for me</label>'+
-    '<div class="row2"><div class="field"><label for="a-date">Date</label><input class="input" type="date" id="a-date" value="'+todayStr()+'" max="'+todayStr()+'"></div><div class="field"><label for="a-note">Note <span style="font-weight:400">(optional)</span></label><input class="input" id="a-note" maxlength="60" placeholder="Paycheck"></div></div>'+
-    '<p class="err" id="a-err" role="alert"></p><button class="btn btn-primary btn-block" type="submit">Add to goal</button></form>',
+    '<div class="field"><label for="a-date">Date</label><input class="input" type="date" id="a-date" value="'+todayStr()+'" max="'+todayStr()+'"></div>'+
+    '<div class="field"><label for="a-note">Label <span style="font-weight:400">(optional)</span></label><input class="input" id="a-note" maxlength="60" placeholder="Paycheck"><div id="a-tags"></div></div>'+
+    '<p class="err" id="a-err" role="alert"></p><button class="btn btn-primary btn-block" type="submit" id="a-go">Add to goal</button></form>',
   function(root){
+    var note=$('#a-note',root),sync=function(){};
     function amtVal(){return cents(String($('#a-amt',root).value).replace(/[$,\s]/g,''))}
-    function upd(){var g=getGoal($('#a-goal',root).value);if(!g)return;$('#a-auto-wrap',root).hidden=g.mode==='even';$('#a-prev',root).innerHTML=previewText(g,amtVal())}
-    $('#a-amt',root).addEventListener('input',upd);$('#a-goal',root).addEventListener('change',upd);
+    function g0(){return getGoal($('#a-goal',root).value)}
+    function upd(){var g=g0();if(!g)return;
+      $('#a-auto-wrap',root).hidden=g.mode==='even'||mode==='out';
+      if(mode==='in'){$('#a-prev',root).innerHTML=previewText(g,amtVal())}
+      else{var have=totalSaved(g),a=amtVal();$('#a-prev',root).innerHTML=a>have?'You have '+money(have)+' saved in this goal.':(a>0?'Leaves <b>'+money(have-a)+'</b> saved. Boxes un-stomp to match.':money(have)+' saved in this goal.')}}
+    function setMode(m){mode=m;$$('[data-amode]',root).forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.amode===m))});
+      $('#sheet-title',root).textContent=m==='out'?'Take money out':'Add savings';
+      $('#a-lede',root).textContent=m==='out'?'Life happens. Record money you pulled from this goal so your grid stays honest.':'Record money you set aside. Every dollar counts toward your goal.';
+      $('#a-amt-l',root).textContent=m==='out'?'Amount taken out':'Amount';
+      $('#a-go',root).textContent=m==='out'?'Take it out':'Add to goal';
+      $('#a-go',root).className='btn btn-block '+(m==='out'?'btn-danger':'btn-primary');
+      note.placeholder=m==='out'?'Car repair':'Paycheck';
+      $('#a-tags',root).innerHTML=tagRow(m==='out'?OUT_TAGS:ADD_TAGS,note.value.trim());sync=wireTags($('#a-tags',root),note);
+      $('#a-err',root).textContent='';upd()}
+    $$('[data-amode]',root).forEach(function(b){b.addEventListener('click',function(){setMode(b.dataset.amode)})});
+    $('#a-amt',root).addEventListener('input',function(){$('#a-err',root).textContent='';upd()});$('#a-goal',root).addEventListener('change',upd);
     $('#a-auto',root).addEventListener('change',function(){state.settings.autoFill=this.checked;save();upd()});
-    upd();
+    setMode(mode);
     $('#add-form',root).addEventListener('submit',function(e){
       e.preventDefault();
-      var g=getGoal($('#a-goal',root).value),amt=amtVal();
+      var g=g0(),amt=amtVal(),dt=$('#a-date',root).value,lbl=note.value.trim();
       if(!(amt>0)){$('#a-err',root).textContent='Enter an amount above $0.';return}
-      var n=applySavings(g,amt,$('#a-date',root).value,$('#a-note',root).value.trim());
+      if(dt&&dt>todayStr()){$('#a-err',root).textContent='The date can’t be in the future.';return}
+      if(mode==='out'){
+        var have=totalSaved(g);
+        if(amt>have){$('#a-err',root).textContent='You only have '+money(have)+' saved in this goal.';return}
+        var before=boxesCrushed(g);
+        g.deposits.push({id:uid(),amount:-amt,date:validDay(dt)||todayStr(),note:lbl,at:Date.now()});
+        rebalanceExtra(g);
+        if(g.completedAt&&totalSaved(g)<g.target)g.completedAt=null;
+        lastPopped=[];save();closeSheet();
+        if(current.view!=='detail'||current.goalId!==g.id)show('detail',g.id);else render();
+        var lost=before-boxesCrushed(g);
+        toast('Took out '+money(amt)+(lost>0?' · '+plural(lost,'box')+' un-stomped':'')+'. You’ve got this.');
+        return;
+      }
+      var n=applySavings(g,amt,dt,lbl);
       closeSheet();
       if(current.view!=='detail'||current.goalId!==g.id)show('detail',g.id);else render();
       toast(savingsMsg(g,amt,n));if(n)buzz();
@@ -1162,15 +1215,49 @@ function tapBox(g,i){
 }
 function buzz(){try{if(navigator.vibrate)navigator.vibrate(18)}catch(e){}}
 
+function editDeposit(g,id){
+  var d=g.deposits.find(function(x){return x.id===id});if(!d)return;
+  var boxKey=null;for(var k in g.crushed)if(g.crushed[k].dep===id)boxKey=k;
+  var lockAmt=boxKey!==null;
+  var curNote=d.note||'',isOut=d.amount<0;
+  openSheet('<h2 id="sheet-title">'+(isOut?'Edit withdrawal':'Edit entry')+'</h2><p class="lede">'+(isOut?'Change how much you took out, the date or the label.':'Change the amount, date or label for this savings entry.')+'</p>'+
+    '<form id="ed-form" novalidate>'+
+    '<div class="field"><label for="ed-amt">'+(isOut?'Amount taken out':'Amount')+'</label>'+(lockAmt?'<div class="input num" style="display:flex;align-items:center;background:var(--surface-2)">'+money(d.amount)+'</div><p class="locked">This entry stomped the '+money(d.amount)+' box, so its amount stays the same. To change it, delete the entry and add a new one.</p>':'<div class="money bigm"><input class="input big num" id="ed-amt" inputmode="decimal" value="'+(Math.abs(d.amount)/100).toFixed(2).replace(/\.00$/,'')+'"></div>')+'</div>'+
+    '<div class="field"><label for="ed-date">Date</label><input class="input" type="date" id="ed-date" value="'+esc(d.date)+'" max="'+todayStr()+'"></div>'+
+    '<div class="field"><label for="ed-note">Label <span style="font-weight:400">(optional)</span></label><input class="input" id="ed-note" maxlength="60" placeholder="'+(isOut?'What was it for?':'Where did this money come from?')+'" value="'+esc(curNote)+'">'+
+    tagRow(isOut?OUT_TAGS:ADD_TAGS,curNote)+'</div>'+
+    '<p class="err" id="ed-err" role="alert"></p><button class="btn btn-primary btn-block" type="submit">Save changes</button></form>',
+  function(root){
+    var note=$('#ed-note',root);wireTags(root,note);
+    $('#ed-form',root).addEventListener('submit',function(e){
+      e.preventDefault();
+      var dt=$('#ed-date',root).value;
+      if(!validDay(dt)){$('#ed-err',root).textContent='Pick a date.';return}
+      if(dt>todayStr()){$('#ed-err',root).textContent='The date can’t be in the future.';return}
+      var amt=d.amount;
+      if(!lockAmt){amt=cents(String($('#ed-amt',root).value).replace(/[$,\s]/g,''));if(!(amt>0)){$('#ed-err',root).textContent='Enter an amount above $0.';return}if(!isOut&&totalSaved(g)-d.amount+amt<0){$('#ed-err',root).textContent='That would put this goal below $0 after your withdrawals.';return}if(isOut){var other=totalSaved(g)-d.amount;if(amt>other){$('#ed-err',root).textContent='You only have '+money(other)+' saved in this goal.';return}amt=-amt}}
+      var before=boxesCrushed(g),wasDone=!!g.completedAt;
+      d.amount=amt;d.date=dt;d.note=note.value.trim();
+      lastPopped=[];
+      if(g.mode==='even'){var after=boxesCrushed(g);for(var i=before;i<after;i++)lastPopped.push(i)}
+      else{rebalanceExtra(g);lastPopped=refillExtra(g)}
+      if(g.completedAt&&totalSaved(g)<g.target)g.completedAt=null;
+      save();closeSheet();render();toast('Entry updated');
+      if(lastPopped.length)buzz();
+      if(!wasDone)checkDone(g);
+    });
+  });
+}
 function deleteDeposit(g,id){
   var d=g.deposits.find(function(x){return x.id===id});if(!d)return;
-  openSheet('<h2 id="sheet-title">Delete this entry?</h2><p class="lede">'+money(d.amount)+' from '+niceDate(d.date,true)+' will be removed from '+esc(g.name)+'.</p><div class="opt-list"><button class="btn btn-danger btn-block" id="do-del">Delete entry</button><button class="btn btn-ghost btn-block" data-act="close">Cancel</button></div>',
+  if(d.amount>0&&totalSaved(g)-d.amount<0){toast('Delete the withdrawal first. Otherwise this goal would go below $0.');return}
+  openSheet('<h2 id="sheet-title">Delete this entry?</h2><p class="lede">'+(d.amount<0?'The '+money(-d.amount)+' withdrawal from '+niceDate(d.date,true)+' will be removed and the money goes back into '+esc(g.name)+'.':money(d.amount)+' from '+niceDate(d.date,true)+' will be removed from '+esc(g.name)+'.')+'</p><div class="opt-list"><button class="btn btn-danger btn-block" id="do-del">Delete entry</button><button class="btn btn-ghost btn-block" data-act="close">Cancel</button></div>',
   function(root){$('#do-del',root).onclick=function(){
     g.deposits=g.deposits.filter(function(x){return x.id!==id});
     for(var k in g.crushed)if(g.crushed[k].dep===id)delete g.crushed[k];
-    rebalanceExtra(g);
+    rebalanceExtra(g);lastPopped=refillExtra(g);
     if(g.completedAt&&totalSaved(g)<g.target)g.completedAt=null;
-    save();closeSheet();render();toast('Entry deleted');
+    save();closeSheet();render();toast('Entry deleted');if(d.amount<0)checkDone(g);
   }});
 }
 
@@ -1268,6 +1355,7 @@ document.addEventListener('click',function(e){
   if(t.dataset.view){if(t.dataset.view==='new')openNew();else show(t.dataset.view);return}
   if(t.dataset.box!==undefined){var g=getGoal(current.goalId);if(g)tapBox(g,+t.dataset.box);return}
   if(t.dataset.delDep){var g2=getGoal(current.goalId);if(g2)deleteDeposit(g2,t.dataset.delDep);return}
+  if(t.dataset.editDep){var g3=getGoal(current.goalId);if(g3)editDeposit(g3,t.dataset.editDep);return}
   if(t.dataset.starter){var s=STARTERS.find(function(x){return x.k===t.dataset.starter});
     if(s&&s.tasks){var tg=makeTaxGoal();state.goals.push(tg);save();closeSheet();show('detail',tg.id);toast('Checklist ready. Tap each step as you finish it.');return}
     openGoalForm(s?(s.make?s.make():JSON.parse(JSON.stringify(s.g))):null);return}
@@ -1280,6 +1368,7 @@ document.addEventListener('click',function(e){
   else if(a==='home'){closeSheet();show('goals')}
   else if(a==='add')openAdd(t.dataset.goal);
   else if(a==='print'){var g3=getGoal(t.dataset.goal);if(g3)printGoal(g3)}
+  else if(a==='takeout')openAdd(t.dataset.goal,'out');
   else if(a==='edit'){var g4=getGoal(t.dataset.goal);if(g4)openGoalForm({name:g4.name,icon:g4.icon,mode:g4.countdown?'countdown':g4.mode,shape:g4.shape,photo:g4.photo,rewards:g4.rewards,target:g4.target/100,box:g4.mode==='even'?g4.boxes[0]/100:10,count:g4.boxes.length,step:g4.step?g4.step/100:1,targetDate:g4.targetDate,payFreq:g4.payFreq},g4)}
   else if(a==='beat'){var gb=getGoal(t.dataset.goal);if(gb)openBeat(gb)}
   else if(a==='more'){var g5=getGoal(t.dataset.goal);if(g5)openMore(g5)}
