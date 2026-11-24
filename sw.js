@@ -1,5 +1,5 @@
 // Bootstraps service worker. Bump CACHE_VERSION with every release (matches version.json).
-const CACHE_VERSION = 'bootstraps-1.8.4';
+const CACHE_VERSION = 'bootstraps-1.8.5';
 // Only this app's own caches. Every CleartrackApps app shares cleartrackapps.com, so they all share one cache store.
 // bootstraps-demo-* belongs to the demo; goal-crusher-* is this app's old name.
 const isOwnCache = (k) => (k.startsWith('bootstraps-') && !k.startsWith('bootstraps-demo-')) || k.startsWith('goal-crusher-');
